@@ -95,7 +95,113 @@ void apply_median_pixels(int nroThreads, int tamanhoMascara, int deslPosMascara,
 }
 
 int main(int argc, char **argv) {
+    int tamanhoMascara, deslPosMascara, nroThreads, i, j;
+    int **matMascaras;
 
+    unsigned char media;
+
+    HEADER c;
+
+    // Vetor de ponteiros
+    RGB **img = NULL, **imgCopy = NULL, *vetMascaraRGB = NULL, pixel;    
+
+    // Descritor
+    FILE *in, *out;
+
+    if(argc!=kQTD_PARAMS) {
+
+        printf("%s <tamanho_mascara> <numero_threads> <arquivo_entrada>\n", argv[0]);
+
+        exit(0);
+    }
+
+    tamanhoMascara = atoi(argv[1]);
+
+    nroThreads = atoi(argv[2]);
+
+    matMascaras = (int **)malloc((nroThreads*3) * sizeof(int*));
+
+    for(int i=0 ; i<(nroThreads*3) ; i++) {
+        matMascaras[i] = (int *)malloc((tamanhoMascara*tamanhoMascara)*sizeof(int));
+    }
+    
+    vetMascaraRGB = malloc(tamanhoMascara*tamanhoMascara*sizeof(RGB));
+
+    in = fopen(argv[3], "rb");
+
+    if(in == NULL) {
+        printf("Erro ao abrir arquivo \"%s\" de entrada\n", argv[3]);
+
+        exit(0);
+    }
+
+    // Abre arquivo binario para escrita
+    out = fopen(kARQ_SAIDA, "wb");
+
+    if(out == NULL) {
+        printf("Erro ao abrir arquivo de saida\n");
+
+        exit(0);
+    }
+
+    printf("Tamanho mascara: %d\nQuantidade de threads: %d\n", tamanhoMascara, nroThreads);
+
+    // Le cabecalho de entrada
+    fread(&c, sizeof(HEADER), 1, in);
+
+    if(c.nbits != kQTD_BITS_IMG) {
+        printf("\nA imagem lida nao possui %d bits", kQTD_BITS_IMG);
+
+        exit(0);
+    }
+
+    deslPosMascara = tamanhoMascara/2;
+
+    // Escreve cabecalho de saida
+    fwrite(&c, sizeof(HEADER), 1, out);
+
+    // Altura * tam para ponteiro de RGB
+    img = (RGB**) malloc(c.altura*sizeof(RGB *));
+    imgCopy = (RGB**) malloc(c.altura*sizeof(RGB *));
+
+    // Cada pos aponta para vetor de RGB
+    for(i=0 ; i<c.altura ; i++) {
+        img[i] = (RGB*) malloc(c.largura*sizeof(RGB));
+    }
+
+    for(i=0 ; i<c.altura ; i++) {
+        imgCopy[i] = (RGB*) malloc(c.largura*sizeof(RGB));
+    }
+
+    // Le 1 pixel por vez
+    for(i=0 ; i<c.altura ; i++) {
+        for(j=0 ; j<c.largura ; j++) {
+            fread(&img[i][j], sizeof(RGB), 1, in);
+            imgCopy[i][j] = img[i][j];
+        }
+    }
+
+    apply_median_pixels(nroThreads, tamanhoMascara, deslPosMascara, c, img, imgCopy, matMascaras);
+
+    // Percorre matriz ja carregada
+    for(i=0 ; i<c.altura ; i++) {
+        for(j=0 ; j<c.largura ; j++) {
+
+            // Grava pixel
+            fwrite(&imgCopy[i][j], sizeof(RGB), 1, out);
+        }
+    }
+
+    for(i=0 ; i<c.altura ; i++) {
+        free(img[i]);
+        free(imgCopy[i]);
+    }
+
+    free(img);
+    free(imgCopy);
+
+    fclose(in);
+    fclose(out);
 }
 
 // --------------------------------------------------------------------------------------------------------
