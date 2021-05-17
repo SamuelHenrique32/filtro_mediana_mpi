@@ -49,7 +49,7 @@ typedef struct rgb {
 
 void bubble_sort(int *v, int size);
 int median(int *v, int tamanhoMascara);
-void apply_median_pixels(int nroThreads, int tamanhoMascara, int deslPosMascara, HEADER c, RGB **img, RGB **imgCopy, int **matMascaras);
+void apply_median_pixels(int tamanhoMascara, int deslPosMascara, HEADER c, RGB **img, RGB **imgCopy);
 int main(int argc, char **argv);
 
 // --------------------------------------------------------------------------------------------------------
@@ -91,10 +91,162 @@ int median(int *v, int tamanhoMascara) {
     }
 }
 
-void apply_median_pixels(int nroThreads, int tamanhoMascara, int deslPosMascara, HEADER c, RGB **img, RGB **imgCopy, int **matMascaras) {
+void apply_median_pixels(int tamanhoMascara, int deslPosMascara, HEADER c, RGB **img, RGB **imgCopy) {
+
+    int posVetMascaraRed = 0, posVetMascaraGreen = 0, posVetMascaraBlue = 0, posX, posY, startX, startY, i, j;
+    int medianRed, medianGreen, medianBlue;
+    int *vetmascaraRedInt = NULL, *vetmascaraGreenInt = NULL, *vetmascaraBlueInt = NULL;
+    int mascaraVet[kQTD_MAX_ELEMENTOS_MASCARA];
+
+    // Posicao atual na matriz
+    posX = deslPosMascara;
+    posY = deslPosMascara;
+
+    // Posicao inicial de deslocamento em X para mascara
+    startX = 0;
+
+    // Posicao corrente de deslocamento em X para mascara
+    j = startX;
+
+    // Posicao inicial de deslocamento em Y para mascara
+    startY = 0;
+
+    // Posicao corrente de deslocamento em Y para mascara
+    i = startY;
+
+    // Para cada pixel da imagem
+    while((posX<c.largura) && (posY<c.altura)) {
+
+        if((startX>=0) && (startY>=0)) {
+
+            vetmascaraRedInt = malloc(sizeof(int)*tamanhoMascara*tamanhoMascara);
+            vetmascaraGreenInt = malloc(sizeof(int)*tamanhoMascara*tamanhoMascara);
+            vetmascaraBlueInt = malloc(sizeof(int)*tamanhoMascara*tamanhoMascara);
+
+            // Processamento para pixel atual
+            while(1) {
+
+                vetmascaraRedInt[posVetMascaraRed] = img[i][j].red;
+                vetmascaraGreenInt[posVetMascaraGreen] = img[i][j].green;
+                vetmascaraBlueInt[posVetMascaraBlue] = img[i][j].blue;
+
+                medianRed = 0;
+                medianGreen = 0;
+                medianBlue = 0;
+
+                posVetMascaraRed++;
+                posVetMascaraGreen++;
+                posVetMascaraBlue++;
+
+                // Incrementa coluna
+                if((j+1-startX) <= (deslPosMascara*2)) {
+                    j++;
+                }
+                else {
+
+                    // Troca linha
+                    i++;
+                    j = startX;
+                }
+
+                // Proximo pixel
+                if(posVetMascaraRed >= (tamanhoMascara*tamanhoMascara)) {
+
+                    memset(mascaraVet, 0, sizeof(mascaraVet));
+
+                    for(int x=0 ; x<tamanhoMascara*tamanhoMascara ; x++) {
+                        mascaraVet[x] = vetmascaraRedInt[x];
+                    }
+
+                    bubble_sort(mascaraVet, tamanhoMascara*tamanhoMascara);
+
+                    medianRed = median(mascaraVet, tamanhoMascara);
+
+                    imgCopy[posY][posX].red = medianRed;                   
+
+                    free(vetmascaraRedInt);
+
+                    memset(mascaraVet, 0, sizeof(mascaraVet));
+
+                    for(int x=0 ; x<tamanhoMascara*tamanhoMascara ; x++) {
+                        mascaraVet[x] = vetmascaraGreenInt[x];
+                    }
+
+                    bubble_sort(mascaraVet, tamanhoMascara*tamanhoMascara);
+
+                    medianGreen = median(mascaraVet, tamanhoMascara);
+
+                    imgCopy[posY][posX].green = medianGreen;
+
+                    free(vetmascaraGreenInt);
+
+                    memset(mascaraVet, 0, sizeof(mascaraVet));
+
+                    for(int x=0 ; x<tamanhoMascara*tamanhoMascara ; x++) {
+                        mascaraVet[x] = vetmascaraBlueInt[x];
+                    }
+
+                    bubble_sort(mascaraVet, tamanhoMascara*tamanhoMascara);
+
+                    medianBlue = median(mascaraVet, tamanhoMascara);
+
+                    imgCopy[posY][posX].blue = medianBlue;
+
+                    free(vetmascaraBlueInt);
+
+                    posVetMascaraRed = 0;
+                    posVetMascaraGreen = 0;
+                    posVetMascaraBlue = 0;
+
+                    break;
+                }
+            }
+        }
+
+        // Pixel a direita
+        if((posX+1) <= ((c.largura-1)-deslPosMascara)) {
+
+            posX++;
+
+            // Posicao inicial de deslocamento em X para mascara
+            startX = posX-deslPosMascara;
+
+            // Posicao corrente de deslocamento em X para mascara
+            j = startX;
+
+            // Posicao inicial de deslocamento em Y para mascara
+            startY = posY-deslPosMascara;
+
+            // Posicao corrente de deslocamento em Y para mascara
+            i = startY;
+        }
+        // Pixel abaixo
+        else if((posY+1) <= ((c.altura-1)-deslPosMascara)) {
+
+            posX = deslPosMascara;
+
+            posY++;
+
+            // Posicao inicial de deslocamento em X para mascara
+            startX = posX-deslPosMascara;
+
+            // Posicao corrente de deslocamento em X para mascara
+            j = startX;
+
+            // Posicao inicial de deslocamento em Y para mascara
+            startY = posY-deslPosMascara;
+
+            // Posicao corrente de deslocamento em Y para mascara
+            i = startY;
+        }
+        else {
+            break;
+        }
+    }
 }
 
 int main(int argc, char **argv) {
+
     int tamanhoMascara, deslPosMascara, nroThreads, i, j;
     int **matMascaras;
 
@@ -181,7 +333,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    apply_median_pixels(nroThreads, tamanhoMascara, deslPosMascara, c, img, imgCopy, matMascaras);
+    apply_median_pixels(tamanhoMascara, deslPosMascara, c, img, imgCopy);
 
     // Percorre matriz ja carregada
     for(i=0 ; i<c.altura ; i++) {
