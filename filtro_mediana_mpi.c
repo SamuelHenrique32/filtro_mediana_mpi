@@ -255,7 +255,9 @@ int main(int argc, char **argv) {
     HEADER c;
 
     // Vetor de ponteiros
-    RGB **img = NULL, **imgCopy = NULL, *vetMascaraRGB = NULL, pixel;    
+    RGB **img = NULL, **imgCopy = NULL, *vetMascaraRGB = NULL, pixel;
+    
+    RGB *matImg = NULL, *matImgCopy = NULL;
 
     // Descritor
     FILE *in, *out;
@@ -316,13 +318,12 @@ int main(int argc, char **argv) {
     img = (RGB**) malloc(c.altura*sizeof(RGB *));
     imgCopy = (RGB**) malloc(c.altura*sizeof(RGB *));
 
-    // Cada pos aponta para vetor de RGB
-    for(i=0 ; i<c.altura ; i++) {
-        img[i] = (RGB*) malloc(c.largura*sizeof(RGB));
-    }
+    matImg = malloc(c.altura*c.largura*sizeof(RGB));
+    matImgCopy = malloc(c.altura*c.largura*sizeof(RGB));
 
     for(i=0 ; i<c.altura ; i++) {
-        imgCopy[i] = (RGB*) malloc(c.largura*sizeof(RGB));
+        img[i] = &matImg[i*c.largura];
+        imgCopy[i] = &matImgCopy[i*c.largura];
     }
 
     // Le 1 pixel por vez
@@ -344,11 +345,10 @@ int main(int argc, char **argv) {
         }
     }
 
-    for(i=0 ; i<c.altura ; i++) {
-        free(img[i]);
-        free(imgCopy[i]);
-    }
+    printf("Imagem escrita para arquivo: %s\n", kARQ_SAIDA);
 
+    free(matImg);
+    free(matImgCopy);
     free(img);
     free(imgCopy);
 
