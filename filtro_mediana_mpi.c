@@ -10,6 +10,7 @@
 #define kARQ_SAIDA "saida.bmp"
 #define kQTD_BITS_IMG 24
 #define kQTD_MAX_ELEMENTOS_MASCARA 49
+#define kMAIN_PROC 0
 
 #pragma pack (1)
 
@@ -266,49 +267,51 @@ int main(int argc, char **argv) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &id);
 	MPI_Comm_size(MPI_COMM_WORLD, &np);
 
-    if(argc!=kQTD_PARAMS) {
+    if(id == kMAIN_PROC) {
+        if(argc!=kQTD_PARAMS) {
 
-        printf("%s <tamanho_mascara> <numero_threads> <arquivo_entrada>\n", argv[0]);
+            printf("%s <tamanho_mascara> <arquivo_entrada>\n", argv[0]);
 
-        exit(0);
+            exit(0);
+        }
+
+        tamanhoMascara = atoi(argv[1]);
+
+        vetMascaraRGB = malloc(tamanhoMascara*tamanhoMascara*sizeof(RGB));
+
+        in = fopen(argv[2], "rb");
+
+        if(in == NULL) {
+            printf("Erro ao abrir arquivo \"%s\" de entrada\n", argv[3]);
+
+            exit(0);
+        }
+
+        // Abre arquivo binario para escrita
+        out = fopen(kARQ_SAIDA, "wb");
+
+        if(out == NULL) {
+            printf("Erro ao abrir arquivo de saida\n");
+
+            exit(0);
+        }
+
+         printf("Tamanho mascara: %d\nQuantidade de processos: %d\n", tamanhoMascara, np);
+
+        // Le cabecalho de entrada
+        fread(&c, sizeof(HEADER), 1, in);
+
+        if(c.nbits != kQTD_BITS_IMG) {
+            printf("\nA imagem lida nao possui %d bits", kQTD_BITS_IMG);
+
+            exit(0);
+        }
+
+        deslPosMascara = tamanhoMascara/2;
+
+        // Escreve cabecalho de saida
+        fwrite(&c, sizeof(HEADER), 1, out);
     }
-
-    tamanhoMascara = atoi(argv[1]);
-
-    vetMascaraRGB = malloc(tamanhoMascara*tamanhoMascara*sizeof(RGB));
-
-    in = fopen(argv[2], "rb");
-
-    if(in == NULL) {
-        printf("Erro ao abrir arquivo \"%s\" de entrada\n", argv[3]);
-
-        exit(0);
-    }
-
-    // Abre arquivo binario para escrita
-    out = fopen(kARQ_SAIDA, "wb");
-
-    if(out == NULL) {
-        printf("Erro ao abrir arquivo de saida\n");
-
-        exit(0);
-    }
-
-    printf("Tamanho mascara: %d\nQuantidade de threads: %d\n", tamanhoMascara, np);
-
-    // Le cabecalho de entrada
-    fread(&c, sizeof(HEADER), 1, in);
-
-    if(c.nbits != kQTD_BITS_IMG) {
-        printf("\nA imagem lida nao possui %d bits", kQTD_BITS_IMG);
-
-        exit(0);
-    }
-
-    deslPosMascara = tamanhoMascara/2;
-
-    // Escreve cabecalho de saida
-    fwrite(&c, sizeof(HEADER), 1, out);
 
     // Altura * tam para ponteiro de RGB
     img = (RGB**) malloc(c.altura*sizeof(RGB *));
@@ -332,7 +335,7 @@ int main(int argc, char **argv) {
 
     apply_median_pixels(tamanhoMascara, deslPosMascara, c, img, imgCopy);
 
-    // Percorre matriz ja carregada
+    // Percorre matriz final
     for(i=0 ; i<c.altura ; i++) {
         for(j=0 ; j<c.largura ; j++) {
 
