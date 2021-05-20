@@ -168,9 +168,6 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
     // Posicao corrente de deslocamento em Y para mascara
     i = startY;
 
-    //printf("Thread id: %d\n", id);
-    //printf("posX = %d posY = %d\n", posX, posY);
-
     // Para cada pixel da imagem
     while((posX<c.largura) && (posY<c.altura)) {
 
@@ -191,17 +188,9 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
                 medianGreen = 0;
                 medianBlue = 0;
 
-                //printf("\nRed img[%d][%d].red = %d vetmascaraRedInt[%d] = %d\n", i, j, img[i][j].red, posVetMascaraRed, vetmascaraRedInt[posVetMascaraRed]);
-                //printf("Green img[%d][%d].green = %d vetmascaraGreenInt[%d] = %d\n", i, j, img[i][j].green, posVetMascaraGreen, vetmascaraGreenInt[posVetMascaraGreen]);
-                //printf("Blue img[%d][%d].blue = %d vetmascaraBlueInt[%d] = %d\n", i, j, img[i][j].blue, posVetMascaraBlue, vetmascaraBlueInt[posVetMascaraBlue]);
-
                 posVetMascaraRed++;
                 posVetMascaraGreen++;
                 posVetMascaraBlue++;
-
-                // Linha coluna
-                //printf("[%d][%d]", i, j);
-                //printf("\n");
 
                 // Incrementa coluna
                 if((j+1-startX) <= (deslPosMascara*2)) {
@@ -219,11 +208,8 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
 
                     memset(mascaraVet, 0, sizeof(mascaraVet));
 
-                    //printf("\nMascara Red antes ordenacao:\n");                    
-
                     for(int x=0 ; x<tamanhoMascara*tamanhoMascara ; x++) {
                         mascaraVet[x] = vetmascaraRedInt[x];
-                        //printf("%d ", mascaraVet[x]);
                     }
 
                     bubble_sort(mascaraVet, tamanhoMascara*tamanhoMascara);
@@ -287,9 +273,6 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
 
             // Posicao corrente de deslocamento em Y para mascara
             i = startY;
-
-            //printf("\n\nThread id: %d pixel a direita\n", id);
-            //printf("posX = %d posY = %d\n", posX, posY);
         }
         // Pixel abaixo
         else if((posY+nroProc) <= ((c.altura-1)-deslPosMascara)) {
@@ -309,14 +292,8 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
 
             // Posicao corrente de deslocamento em Y para mascara
             i = startY;
-
-            //printf("\n\nThread id: %d pixel abaixo\n", id);
-            //printf("posX = %d posY = %d\n", posX, posY);
         }
         else {
-
-            //printf("\n\nThread id: %d fim\n", id);
-
             break;
         }
     }
@@ -324,10 +301,10 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
 
 int main(int argc, char **argv) {
 
-    int tamanhoMascara, deslPosMascara, i, j, id, np;
+    int i, j, id, np;
 
     // Dados para serem enviados
-    int largura_send, altura_send;
+    int larguraSend, alturaSend, tamanhoMascaraSend, deslPosMascaraSend;
 
     unsigned char media;
 
@@ -353,9 +330,9 @@ int main(int argc, char **argv) {
             exit(0);
         }
 
-        tamanhoMascara = atoi(argv[1]);
+        tamanhoMascaraSend = atoi(argv[1]);
 
-        vetMascaraRGB = malloc(tamanhoMascara*tamanhoMascara*sizeof(RGB));
+        vetMascaraRGB = malloc(tamanhoMascaraSend*tamanhoMascaraSend*sizeof(RGB));
 
         in = fopen(argv[2], "rb");
 
@@ -374,7 +351,7 @@ int main(int argc, char **argv) {
             exit(0);
         }
 
-         printf("Tamanho mascara: %d\nQuantidade de processos: %d\n", tamanhoMascara, np);
+         printf("Tamanho mascara: %d\nQuantidade de processos: %d\n", tamanhoMascaraSend, np);
 
         // Le cabecalho de entrada
         fread(&c, sizeof(HEADER), 1, in);
@@ -385,28 +362,30 @@ int main(int argc, char **argv) {
             exit(0);
         }
 
-        deslPosMascara = tamanhoMascara/2;
+        deslPosMascaraSend = tamanhoMascaraSend/2;
 
         // Escreve cabecalho de saida
         fwrite(&c, sizeof(HEADER), 1, out);
 
-        largura_send = c.largura;
-        altura_send = c.altura;
+        larguraSend = c.largura;
+        alturaSend = c.altura;
     }
 
-    MPI_Bcast(&largura_send, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&altura_send, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&larguraSend, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&alturaSend, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&tamanhoMascaraSend, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&deslPosMascaraSend, 1, MPI_INT, 0, MPI_COMM_WORLD);    
 
     // Altura * tam para ponteiro de RGB
-    img = (RGB**) malloc(altura_send*sizeof(RGB *));
-    imgCopy = (RGB**) malloc(altura_send*sizeof(RGB *));
+    img = (RGB**) malloc(alturaSend*sizeof(RGB *));
+    imgCopy = (RGB**) malloc(alturaSend*sizeof(RGB *));
 
-    matImg = malloc(altura_send*largura_send*sizeof(RGB));
-    matImgCopy = malloc(altura_send*largura_send*sizeof(RGB));
+    matImg = malloc(alturaSend*larguraSend*sizeof(RGB));
+    matImgCopy = malloc(alturaSend*larguraSend*sizeof(RGB));
 
-    for(i=0 ; i<altura_send ; i++) {
-        img[i] = &matImg[i*largura_send];
-        imgCopy[i] = &matImgCopy[i*largura_send];
+    for(i=0 ; i<alturaSend ; i++) {
+        img[i] = &matImg[i*larguraSend];
+        imgCopy[i] = &matImgCopy[i*larguraSend];
     }
 
     if(id == kMAIN_PROC) {
@@ -424,9 +403,12 @@ int main(int argc, char **argv) {
         }
     }
     
-    apply_median_pixels(0, tamanhoMascara, deslPosMascara, np, c, img, imgCopy);
-    apply_median_pixels(1, tamanhoMascara, deslPosMascara, np, c, img, imgCopy);
-    apply_median_pixels(2, tamanhoMascara, deslPosMascara, np, c, img, imgCopy);
+
+    printf("Desl mask: %d\n", deslPosMascaraSend);
+
+    apply_median_pixels(0, tamanhoMascaraSend, deslPosMascaraSend, np, c, img, imgCopy);
+    apply_median_pixels(1, tamanhoMascaraSend, deslPosMascaraSend, np, c, img, imgCopy);
+    apply_median_pixels(2, tamanhoMascaraSend, deslPosMascaraSend, np, c, img, imgCopy);
 
     if(id == kMAIN_PROC) {
 
