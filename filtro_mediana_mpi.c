@@ -128,6 +128,7 @@ void apply_median_pixels(int tamanhoMascara, int deslPosMascara, HEADER c, RGB *
             // Processamento para pixel atual
             while(1) {
 
+                //Usa imagem original para gerar mascara
                 vetmascaraRedInt[posVetMascaraRed] = img[i][j].red;
                 vetmascaraGreenInt[posVetMascaraGreen] = img[i][j].green;
                 vetmascaraBlueInt[posVetMascaraBlue] = img[i][j].blue;
@@ -251,6 +252,9 @@ int main(int argc, char **argv) {
 
     int tamanhoMascara, deslPosMascara, i, j, id, np;
 
+    // Dados para serem enviados
+    int largura_send, altura_send;
+
     unsigned char media;
 
     HEADER c;
@@ -311,48 +315,62 @@ int main(int argc, char **argv) {
 
         // Escreve cabecalho de saida
         fwrite(&c, sizeof(HEADER), 1, out);
+
+        largura_send = c.largura;
+        altura_send = c.altura;
     }
+
+    MPI_Bcast(&largura_send, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&altura_send, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Altura * tam para ponteiro de RGB
-    img = (RGB**) malloc(c.altura*sizeof(RGB *));
-    imgCopy = (RGB**) malloc(c.altura*sizeof(RGB *));
+    img = (RGB**) malloc(altura_send*sizeof(RGB *));
+    imgCopy = (RGB**) malloc(altura_send*sizeof(RGB *));
 
-    matImg = malloc(c.altura*c.largura*sizeof(RGB));
-    matImgCopy = malloc(c.altura*c.largura*sizeof(RGB));
+    matImg = malloc(altura_send*largura_send*sizeof(RGB));
+    matImgCopy = malloc(altura_send*largura_send*sizeof(RGB));
 
-    for(i=0 ; i<c.altura ; i++) {
-        img[i] = &matImg[i*c.largura];
-        imgCopy[i] = &matImgCopy[i*c.largura];
+    for(i=0 ; i<altura_send ; i++) {
+        img[i] = &matImg[i*largura_send];
+        imgCopy[i] = &matImgCopy[i*largura_send];
     }
 
-    // Le 1 pixel por vez
-    for(i=0 ; i<c.altura ; i++) {
-        for(j=0 ; j<c.largura ; j++) {
-            fread(&img[i][j], sizeof(RGB), 1, in);
-            imgCopy[i][j] = img[i][j];
+    if(id == kMAIN_PROC) {
+        // Le 1 pixel por vez
+        for(i=0 ; i<c.altura ; i++) {
+             for(j=0 ; j<c.largura ; j++) {
+                 fread(&img[i][j], sizeof(RGB), 1, in);
+                 imgCopy[i][j] = img[i][j];
+             }
         }
     }
-
-    apply_median_pixels(tamanhoMascara, deslPosMascara, c, img, imgCopy);
-
-    // Percorre matriz final
-    for(i=0 ; i<c.altura ; i++) {
-        for(j=0 ; j<c.largura ; j++) {
-
-            // Grava pixel
-            fwrite(&imgCopy[i][j], sizeof(RGB), 1, out);
-        }
+    
+    if(id == kMAIN_PROC) {
+        apply_median_pixels(tamanhoMascara, deslPosMascara, c, img, imgCopy);
     }
 
-    printf("Imagem escrita para arquivo: %s\n", kARQ_SAIDA);
+    if(id == kMAIN_PROC) {
+
+        // Percorre matriz final
+        for(i=0 ; i<c.altura ; i++) {
+            for(j=0 ; j<c.largura ; j++) {
+                // Grava pixel
+                fwrite(&imgCopy[i][j], sizeof(RGB), 1, out);
+            }
+        }
+
+        printf("Imagem escrita para arquivo: %s\n", kARQ_SAIDA);
+    }
 
     free(matImg);
     free(matImgCopy);
     free(img);
     free(imgCopy);
 
-    fclose(in);
-    fclose(out);
+    if(id == kMAIN_PROC) {
+        fclose(in);
+        fclose(out);
+    }
 
     MPI_Finalize();
 }
