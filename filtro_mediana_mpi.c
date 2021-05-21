@@ -61,7 +61,7 @@ void bubble_sort(int *v, int size);
 int need_copy_to_final_img_line(int pos, int height);
 int need_copy_to_final_img_column(int pos, int width);
 int median(int *v, int tamanhoMascara);
-void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nroProc, HEADER c, RGB **img, RGB **imgCopy);
+void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nroProc, int largura, int altura, RGB **img, RGB **imgCopy);
 int main(int argc, char **argv);
 
 // --------------------------------------------------------------------------------------------------------
@@ -145,7 +145,7 @@ int median(int *v, int tamanhoMascara) {
     }
 }
 
-void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nroProc, HEADER c, RGB **img, RGB **imgCopy) {
+void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nroProc, int largura, int altura, RGB **img, RGB **imgCopy) {
 
     int posVetMascaraRed = 0, posVetMascaraGreen = 0, posVetMascaraBlue = 0, posX, posY, startX, startY, i, j;
     int medianRed, medianGreen, medianBlue;
@@ -169,7 +169,7 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
     i = startY;
 
     // Para cada pixel da imagem
-    while((posX<c.largura) && (posY<c.altura)) {
+    while((posX<largura) && (posY<altura)) {
 
         if((startX>=0) && (startY>=0)) {
 
@@ -258,7 +258,7 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
         }
 
         // Pixel a direita
-        if((posX+1) <= ((c.largura-1)-deslPosMascara)) {
+        if((posX+1) <= ((largura-1)-deslPosMascara)) {
 
             posX++;
 
@@ -275,7 +275,7 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
             i = startY;
         }
         // Pixel abaixo
-        else if((posY+nroProc) <= ((c.altura-1)-deslPosMascara)) {
+        else if((posY+nroProc) <= ((altura-1)-deslPosMascara)) {
 
             posX = deslPosMascara;
 
@@ -402,13 +402,11 @@ int main(int argc, char **argv) {
             }
         }
     }
+
+    MPI_Bcast(&(img[0][0]), larguraSend*alturaSend, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&(imgCopy[0][0]), larguraSend*alturaSend, MPI_INT, 0, MPI_COMM_WORLD);
     
-
-    printf("Desl mask: %d\n", deslPosMascaraSend);
-
-    apply_median_pixels(0, tamanhoMascaraSend, deslPosMascaraSend, np, c, img, imgCopy);
-    apply_median_pixels(1, tamanhoMascaraSend, deslPosMascaraSend, np, c, img, imgCopy);
-    apply_median_pixels(2, tamanhoMascaraSend, deslPosMascaraSend, np, c, img, imgCopy);
+    apply_median_pixels(id, tamanhoMascaraSend, deslPosMascaraSend, np, larguraSend, alturaSend, img, imgCopy);
 
     if(id == kMAIN_PROC) {
 
