@@ -154,7 +154,7 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
 
     // Posicao atual na matriz
     posX = deslPosMascara;
-    posY = deslPosMascara+id;
+    posY = (id==0) ? id*(altura/nroProc)+deslPosMascara : id*(altura/nroProc);
 
     // Posicao inicial de deslocamento em X para mascara
     startX = 0;
@@ -275,11 +275,16 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
             i = startY;
         }
         // Pixel abaixo
-        else if((posY+nroProc) <= ((altura-1)-deslPosMascara)) {
+        else if(posY < (id+1)*((altura/nroProc)-1)) {
 
             posX = deslPosMascara;
 
-            posY += nroProc;
+            posY += 1;
+
+            // Nao processa bordas
+            if((id == nroProc-1) && (posY>=(altura-deslPosMascara))) {                
+                break;
+            }
 
             // Posicao inicial de deslocamento em X para mascara
             startX = posX-deslPosMascara;
@@ -364,9 +369,6 @@ int main(int argc, char **argv) {
 
         deslPosMascaraSend = tamanhoMascaraSend/2;
 
-        // Escreve cabecalho de saida
-        fwrite(&c, sizeof(HEADER), 1, out);
-
         larguraSend = c.largura;
         alturaSend = c.altura;
     }
@@ -398,21 +400,27 @@ int main(int argc, char **argv) {
                 if((need_copy_to_final_img_line(i, c.altura)) || (need_copy_to_final_img_column(j, c.largura))) {
                     imgCopy[i][j] = img[i][j];
                 }
-                
             }
         }
     }
 
     MPI_Bcast(&(img[0][0]), larguraSend*alturaSend, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&(imgCopy[0][0]), larguraSend*alturaSend, MPI_INT, 0, MPI_COMM_WORLD);
-    
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
     apply_median_pixels(id, tamanhoMascaraSend, deslPosMascaraSend, np, larguraSend, alturaSend, img, imgCopy);
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if(id == kMAIN_PROC) {
 
+        // Cabecalho de saida
+        fwrite(&c, sizeof(HEADER), 1, out);
+
         // Percorre matriz final
-        for(i=0 ; i<c.altura ; i++) {
-            for(j=0 ; j<c.largura ; j++) {
+        for(i=0 ; i<alturaSend ; i++) {
+            for(j=0 ; j<larguraSend ; j++) {
                 // Grava pixel
                 fwrite(&imgCopy[i][j], sizeof(RGB), 1, out);
             }
