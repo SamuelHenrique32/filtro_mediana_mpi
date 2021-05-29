@@ -10,9 +10,9 @@
 #define kQTD_PARAMS 3
 #define kARQ_SAIDA "saida.bmp"
 #define kQTD_BITS_IMG 24
+#define kBMP_MULTIPLICITY 4
 #define kQTD_MAX_ELEMENTOS_MASCARA 49
 #define kMAIN_PROC 0
-
 #define kCOPY_TO_FINAL_IMG_OFFSET 3
 
 #pragma pack (1)
@@ -309,7 +309,7 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
 
 int main(int argc, char **argv) {
 
-    int i = 0, j = 0, id = 0, np = 0, recvOffset = 0, sendOffset = 0;
+    int i = 0, j = 0, id = 0, np = 0, recvOffset = 0, sendOffset = 0, align = 0;
 
     // Dados para serem enviados
     int larguraSend = 0, alturaSend = 0, tamanhoMascaraSend = 0, deslPosMascaraSend = 0;
@@ -325,6 +325,8 @@ int main(int argc, char **argv) {
     FILE *in, *out;
 
     MPI_Status status;
+
+    unsigned char byte;
 
     MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &id);
@@ -396,11 +398,23 @@ int main(int argc, char **argv) {
     }
 
     if(id == kMAIN_PROC) {
+
+        align = (c.largura*sizeof(RGB)) % kBMP_MULTIPLICITY;
+
+		if(align!=0) {
+			align = kBMP_MULTIPLICITY-align;
+		}
+
         // Le 1 pixel por vez
         for(i=0 ; i<c.altura ; i++) {
             for(j=0 ; j<c.largura ; j++) {
                 fread(&img[i][j], sizeof(RGB), 1, in);
             }
+
+            //Bytes to complete
+		    for(j=0 ; j<align ; j++) {			    
+			    fread(&byte, sizeof(unsigned char), 1, in);
+		    }
         }
     }
 
@@ -449,6 +463,11 @@ int main(int argc, char **argv) {
                 // Grava pixel
                 fwrite(&imgCopy[i][j], sizeof(RGB), 1, out);
             }
+
+            //Bytes to complete
+		    for(j=0 ; j<align ; j++) {	
+			    fwrite(&byte, sizeof(unsigned char), 1, out);
+		    }
         }
 
         printf("Imagem escrita para arquivo: %s\n", kARQ_SAIDA);
