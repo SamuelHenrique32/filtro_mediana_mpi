@@ -1,3 +1,4 @@
+//OBS: BMP is stored upside down
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -216,6 +217,8 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
 
                     medianRed = median(mascaraVet, tamanhoMascara);
 
+                    //printf("Process %d posY= %d posX= %d\n", id, posY, posX);
+
                     imgCopy[posY][posX].red = medianRed;                   
 
                     free(vetmascaraRedInt);
@@ -275,7 +278,7 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
             i = startY;
         }
         // Pixel abaixo
-        else if(posY < (id+1)*((altura/nroProc)-1)) {
+        else if(posY < (id+1)*((altura/nroProc))) {
 
             posX = deslPosMascara;
 
@@ -306,12 +309,10 @@ void apply_median_pixels(int id, int tamanhoMascara, int deslPosMascara, int nro
 
 int main(int argc, char **argv) {
 
-    int i, j, id, np;
+    int i = 0, j = 0, id = 0, np = 0, recvOffset = 0, sendOffset = 0;
 
     // Dados para serem enviados
-    int larguraSend, alturaSend, tamanhoMascaraSend, deslPosMascaraSend;
-
-    unsigned char media;
+    int larguraSend = 0, alturaSend = 0, tamanhoMascaraSend = 0, deslPosMascaraSend = 0;
 
     HEADER c;
 
@@ -322,6 +323,8 @@ int main(int argc, char **argv) {
 
     // Descritor
     FILE *in, *out;
+
+    MPI_Status status;
 
     MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &id);
@@ -352,7 +355,6 @@ int main(int argc, char **argv) {
 
         if(out == NULL) {
             printf("Erro ao abrir arquivo de saida\n");
-
             exit(0);
         }
 
@@ -380,13 +382,16 @@ int main(int argc, char **argv) {
 
     // Altura * tam para ponteiro de RGB
     img = (RGB**) malloc(alturaSend*sizeof(RGB *));
-    imgCopy = (RGB**) malloc(alturaSend*sizeof(RGB *));
-
+    
     matImg = malloc(alturaSend*larguraSend*sizeof(RGB));
-    matImgCopy = malloc(alturaSend*larguraSend*sizeof(RGB));
 
     for(i=0 ; i<alturaSend ; i++) {
         img[i] = &matImg[i*larguraSend];
+    }
+
+    imgCopy = (RGB**) malloc(alturaSend*sizeof(RGB *));
+    matImgCopy = malloc(alturaSend*larguraSend*sizeof(RGB));
+    for(i=0 ; i<alturaSend ; i++) {
         imgCopy[i] = &matImgCopy[i*larguraSend];
     }
 
@@ -395,25 +400,45 @@ int main(int argc, char **argv) {
         for(i=0 ; i<c.altura ; i++) {
             for(j=0 ; j<c.largura ; j++) {
                 fread(&img[i][j], sizeof(RGB), 1, in);
-
-                // Copy edges where median won't be applied
-                if((need_copy_to_final_img_line(i, c.altura)) || (need_copy_to_final_img_column(j, c.largura))) {
-                    imgCopy[i][j] = img[i][j];
-                }
             }
         }
     }
 
     MPI_Bcast(&(img[0][0]), larguraSend*alturaSend, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&(imgCopy[0][0]), larguraSend*alturaSend, MPI_INT, 0, MPI_COMM_WORLD);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    for(i=0 ; i<alturaSend ; i++) {
+        for(j=0 ; j<larguraSend ; j++) {
+            // Copy edges where median won't be applied
+            if((need_copy_to_final_img_line(i, alturaSend)) || (need_copy_to_final_img_column(j, larguraSend))) {
+                imgCopy[i][j] = img[i][j];
+            }            
+        }
+    }
 
     apply_median_pixels(id, tamanhoMascaraSend, deslPosMascaraSend, np, larguraSend, alturaSend, img, imgCopy);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    if(id != kMAIN_PROC) {
 
-    if(id == kMAIN_PROC) {
+        sendOffset = id*(alturaSend/np);
+
+        MPI_Send(&imgCopy[sendOffset][0], larguraSend*(alturaSend/np), MPI_INT, kMAIN_PROC, 1, MPI_COMM_WORLD);
+    }
+    else {
+
+        if(np>1) {
+
+            recvOffset = (alturaSend/np);
+
+            for(i=(kMAIN_PROC+1) ; i<np ; i++) {
+
+                MPI_Recv(&imgCopy[recvOffset][0], larguraSend*(alturaSend/np), MPI_INT, i, 1, MPI_COMM_WORLD, &status);
+
+                recvOffset += (alturaSend/np);
+            }            
+        }
+
+        // Arquivo binario para escrita
+        out = fopen(kARQ_SAIDA, "wb");
 
         // Cabecalho de saida
         fwrite(&c, sizeof(HEADER), 1, out);
@@ -428,6 +453,8 @@ int main(int argc, char **argv) {
 
         printf("Imagem escrita para arquivo: %s\n", kARQ_SAIDA);
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     free(matImg);
     free(matImgCopy);
